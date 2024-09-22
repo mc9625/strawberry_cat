@@ -114,3 +114,4 @@ def agent_fast_reply(fast_reply, cat):
         solution_result = cat.llm(solution_generation_prompt.format(context_analysis_result=context_analysis_result, user_prompt=user_prompt))
         fast_reply["output"] = solution_result
         return fast_reply
+
