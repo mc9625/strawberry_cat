@@ -1,10 +1,10 @@
 {
     "name": "Strawberry Cat",
     "version": "0.0.1",
-    "description": "Description of strawberry_cat.",
-    "author_name": "Me",
-    "author_url": "https://mywebsite.me",
-    "plugin_url": "https://github.com/my_name/strawberry_cat",
-    "tags": "cat, template, example",
-    "thumb": "https://raw.githubusercontent.com/my_repo_path/strawberry_cat.png"
+    "description": "A rudimentary implementation of a chain of thought. Start you prompt with a special tag [by defaul Q*] and wait for the analysis to be completed.",
+    "author_name": "NuvolaProject",
+    "author_url": "https://nuvolaproject.cloud",
+    "plugin_url": "https://github.com/mc9625/strawberry_cat",
+    "tags": "cat, template, chain of thought",
+    "thumb": "https://raw.githubusercontent.com/mc9625/strawberry_cat/refs/heads/main/strawberry-cat.png"
 }

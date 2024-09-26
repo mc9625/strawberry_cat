@@ -1,117 +1,98 @@
-from cat.mad_hatter.decorators import tool, hook, plugin
-from cat.log import log
-from pydantic import BaseModel, Field
+from cat.mad_hatter.decorators import hook
 
-# Definisci il modello delle impostazioni
-class strawberryCatSettings(BaseModel):
-    context_analysis_prompt: str = Field(
-        title="Context Analysis Prompt 2",
-        default="""Analyze the following problem, paying close attention to real-world implications and contextual factors:
+@hook(priority=10)
+def before_cat_reads_message(user_message_json, cat):
+    prompt = user_message_json["text"]
+    settings = cat.mad_hatter.get_plugin().load_settings()
+    trigger = settings.get("trigger")
+    
+    if prompt.startswith("Q*"):
+        user_prompt = prompt[len(trigger):].strip()
+        
+        # Initialize a dictionary to store intermediate results
+        intermediate_results = {}
 
-        {user_prompt}
-
-        Consider these context relevant information: {declarative_memories}
-
-        This is what has been already said about this topic: {episodic_memories}
-
-        Provide your analysis in the following structure:
-
-        1. Main Question: [Restate the primary question]
-        2. Given Options: [List the multiple-choice options provided]
-        3. Key Facts: [List the most important given facts]
-        4. Contextual Factors: [List factors that could influence the real-world outcome]
-        5. Implicit Information: [List any important implied information]
-
-
-        IMPORTANT: ALWAYS reply using the {user_prompt} orginal language (es. Italian, English, Spanish...)
-        """
-    )
-    solution_generation_prompt: str = Field(
-        title="Solution Generation Prompt",
-        default="""Based on the following problem analysis:
-
-        {context_analysis_result}
-
-        Solve the problem, considering all real-world implications and contextual factors. Provide your solution in the following structure:
-
-        FINAL ANSWER: [Answer with the solution of the problem, in clear and succinct format]
-
-        \nEXPLANATION:
-        1. Initial Calculations: [Show any necessary mathematical calculations]
-        2. Real-World Considerations: [Explain how real-world factors affect the result]
-        3. Reasoning: [Provide a step-by-step explanation of your thought process]
-        4. Justification: [Explain why the chosen answer is the most realistic]
-        5. Confidence Level: [High/Medium/Low] - [Brief explanation]
-
-        Remember, the goal is to choose the most realistic answer, taking into account both the mathematical aspects, if any, and the real-world context of the problem.
-        ALWAYS answer using the original {user_prompt} language!
-"""
-    )
-    show_reasoning: bool = Field(
-        default=False,
-        description="If On, the answer will include the full reasoning. "
-                "If off you can access the reasoing in working_memory.reasoning."
-    )
-
-# Carica le impostazioni nel plugin
-@plugin
-def settings_model():
-    return strawberryCatSettings
-
-
-# Context-Aware Chain of Thought Algorithm Prompts with Descriptive Names
-
-context_analysis_prompt = """Analyze the following problem, paying close attention to real-world implications and contextual factors:
-
-{user_prompt}
-
-Consider these context relevant information: {declarative_memories}
-
-This is what has been already said about this topic: {episodic_memories}
-
-Provide your analysis in the following structure:
-
-1. Main Question: [Restate the primary question]
-2. Given Options: [List the multiple-choice options provided]
-3. Key Facts: [List the most important given facts]
-4. Contextual Factors: [List factors that could influence the real-world outcome]
-5. Implicit Information: [List any important implied information]
-
-
-IMPORTANT: ALWAYS reply using the {user_prompt} orginal language (es. Italian, English, Spanish...)
-"""
-
-solution_generation_prompt = """Based on the following problem analysis:
-
-{context_analysis_result}
-
-Solve the problem, considering all real-world implications and contextual factors. Provide your solution in the following structure:
-
-FINAL ANSWER: [Answer with the solution of the problem, in clear and succinct format]
-
-\nEXPLANATION:
-1. Initial Calculations: [Show any necessary mathematical calculations]
-2. Real-World Considerations: [Explain how real-world factors affect the result]
-3. Reasoning: [Provide a step-by-step explanation of your thought process]
-4. Justification: [Explain why the chosen answer is the most realistic]
-5. Confidence Level: [High/Medium/Low] - [Brief explanation]
-
-Remember, the goal is to choose the most realistic answer, taking into account both the mathematical aspects, if any, and the real-world context of the problem.
-ALWAYS answer using the original {user_prompt} language!
-"""
-
-
-@hook(priority=1)
-def agent_fast_reply(fast_reply, cat):
-    message = cat.working_memory.user_message_json.text
-    declarative_memories = cat.working_memory.declarative_memories[0][0].page_content if cat.working_memory.declarative_memories else ""
-    episodic_memories = cat.working_memory.episodic_memories[0][0].page_content if cat.working_memory.episodic_memories else ""
-    if message.startswith("Q*"): 
-        user_prompt = message[2:].strip()
+        # Step 1: Context Analysis
+        context_analysis_prompt = settings.get("context_analysis_prompt").format(user_prompt=user_prompt)
         cat.send_ws_message("Analyzing problem context...")
-        context_analysis_result = cat.llm(context_analysis_prompt.format(user_prompt=user_prompt, declarative_memories=declarative_memories, episodic_memories=episodic_memories))
-        cat.send_ws_message("Generating solution...")
-        solution_result = cat.llm(solution_generation_prompt.format(context_analysis_result=context_analysis_result, user_prompt=user_prompt))
-        fast_reply["output"] = solution_result
-        return fast_reply
+        context_analysis_result = cat.llm(context_analysis_prompt)
+        intermediate_results['context_analysis'] = context_analysis_result
 
+        # Self-Revision for Context Analysis
+        context_revision_prompt = settings.get("revision_prompt").format(
+            step_name="Context Analysis",
+            previous_output=context_analysis_result,
+            user_prompt=user_prompt
+        )
+        cat.send_ws_message("Revising context analysis...")
+        context_analysis_revision = cat.llm(context_revision_prompt)
+        # Use the revised output
+        context_analysis_result = context_analysis_revision
+        intermediate_results['context_analysis'] = context_analysis_result
+
+        # Step 2: Solution Generation
+        solution_generation_prompt = settings.get("solution_generation_prompt").format(
+            context_analysis_result=context_analysis_result
+        )
+        cat.send_ws_message("Generating possible strategies...")
+        solution_generation_result = cat.llm(solution_generation_prompt)
+        intermediate_results['solution_generation'] = solution_generation_result
+
+        # Self-Revision for Solution Generation
+        solution_revision_prompt = settings.get("revision_prompt").format(
+            step_name="Solution Generation",
+            previous_output=solution_generation_result,
+            context_analysis_result=context_analysis_result
+        )
+        cat.send_ws_message("Revising solution generation...")
+        solution_generation_revision = cat.llm(solution_revision_prompt)
+        solution_generation_result = solution_generation_revision
+        intermediate_results['solution_generation'] = solution_generation_result
+
+        # Step 3: Strategy Selection
+        select_strategy_prompt = settings.get("select_strategy_prompt").format(
+            solution_generation_result=solution_generation_result,
+            user_prompt=user_prompt
+        )
+        cat.send_ws_message("Selecting the most effective strategy...")
+        select_strategy_result = cat.llm(select_strategy_prompt)
+        intermediate_results['select_strategy'] = select_strategy_result
+
+        # Self-Revision for Strategy Selection
+        strategy_revision_prompt = settings.get("revision_prompt").format(
+            step_name="Strategy Selection",
+            previous_output=select_strategy_result,
+            solution_generation_result=solution_generation_result
+        )
+        cat.send_ws_message("Revising strategy selection...")
+        select_strategy_revision = cat.llm(strategy_revision_prompt)
+        select_strategy_result = select_strategy_revision
+        intermediate_results['select_strategy'] = select_strategy_result
+
+        # Step 4: Develop Solution
+        develop_solution_prompt = settings.get("develop_solution_prompt").format(
+            select_strategy_result=select_strategy_result,
+            user_prompt=user_prompt
+        )
+        cat.send_ws_message("Developing the solution...")
+
+        if not settings.get("show_reasoning"):
+            develop_solution_prompt += "\n\nIMPORTANT: Reply ONLY with the final answer. Do NOT include full reasoning!"
+
+        # Replace the user's message with the final prompt
+        user_message_json["text"] = develop_solution_prompt
+
+        return user_message_json
+
+
+
+@hook
+def agent_prompt_prefix(prefix, cat):
+    prefix = (
+        "You are an advanced AI language model that solves problems efficiently and accurately "
+        "using a structured chain-of-thought reasoning process. "
+        "Your goal is to understand problems thoroughly, plan effective solutions, "
+        "and provide clear, correct answers. "
+        "Follow each step carefully and ensure your reasoning is logical and well-explained."
+    )
+    return prefix
