@@ -7,76 +7,71 @@ class StrawberryCatSettings(BaseModel):
         default="Q*"
     )
     # Step 1: Context Analysis
-    context_analysis_prompt: str = Field(
-        title="Context Analysis Statement",
-        default="""Please **carefully read** the problem below and **thoroughly analyze it** by:
+    problem_analysis_prompt: str = Field(
+        title="Analyse the problem",
+        default="""Slow down. Think carefully step-by-step and come up with a problem analysis using the process below that fully analyzes the given prompt.
+    
+    Process:
+    - Define the problem space and constraints
+    - Identify key variables and their relationships
+    - Determine evaluation criteria for success
 
-        - Identifying all **key elements** (objects, characters, relationships, sequences of events).
-        - Noting any **explicit and implicit constraints or conditions**.
-        - Highlighting any **potential ambiguities or pitfalls**.
-        - **Determining the exact goal** of the problem and any specific questions that need to be answered.
-
-        Problem:
-        {user_prompt}"""
+    Format your analysis following this blueprint:
+    **Problem space and constraints**:
+    (Succinctly define the problem space and constraints)
+    **Key variables and their relationships**:
+    (Identify key variables and their relationships)
+    **Success criteria**:
+    (Determine evaluation criteria for success)
+    
+    Prompt:
+            {user_prompt}
+    
+    Problem Analysis:
+        """
     )
-    # Step 2: Solution Generation
-    solution_generation_prompt: str = Field(
-        title="Solution Generation Statement",
-        default="""Based on the thorough analysis above, **develop several specific and feasible strategies** to solve the problem. For each strategy:
-
-        - **Explain the approach in detail**.
-        - **Justify why it is suitable** given the key elements and constraints.
-        - **Consider potential challenges** and how they can be addressed.
-
-        Analysis:
-        {context_analysis_result}"""
+    # Step 2: Strategy planning
+    strategy_planning_prompt: str = Field(
+        title="Strategy planning",
+        default="""Slow down. Think carefully step-by-step and brainstorm 3 distinct strategies for solving this problem space:
+        {problem_analysis_result}
+        
+        Strategies: """
     )
     # Step 3: Select Strategy
     select_strategy_prompt: str = Field(
-        title="Select Strategy Statement",
-        default="""Evaluate the proposed strategies above using the following criteria:
-
-        - **Alignment with the problem's goal and constraints**.
-        - **Feasibility and practicality** of implementation.
-        - **Effectiveness** in addressing all key elements.
-        - **Efficiency** in reaching a solution.
-
-        **Select the most appropriate strategy** and **provide a detailed justification** for your choice, referencing specific aspects of the problem.
-
-        Strategies:
-        {solution_generation_result}
-        Problem:
-        {user_prompt}"""
+        title="Strategy Selection",
+        default="""Take your time to pick a strategy that will best solve the problem space. After you pick one, write it out exactly.
+        Problem Space: {problem_analysis_result}
+        Strategies to choose from:
+        {strategy_planning_result}
+        Write out all the text of the chosen plan: """
     )
-    
-    # Self-Revision Prompt
-    revision_prompt: str = Field(
-            title="Revision Prompt",
-            default="""Please review your previous output for the step "{step_name}" and check for any errors, omissions, or inconsistencies. Make corrections as needed to improve the accuracy and completeness of your work.
 
-    Previous Output:
-    {previous_output}
-    """
+
+    # Step 4: Tactical breakdown
+    tactical_breakdown_prompt: str = Field(
+        title="Tactical breakdown",
+        default="""Given the problem space and strategy to solve it, create a list of tactical tasks to follow that will solve the problem.
+        Do NOT solve the proble, ONLY create the tasks to be followed.
+        Problem space: {problem_analysis_result}
+        Strategy: {select_strategy_result}
+        Tactical tasks:"""
+    )
+
+    # Step 5: Final Answer
+    final_answer_prompt: str = Field(
+        title="Answering",
+        default="""Follow the given steps to solve the given problem.
+        Problem: {user_prompt}
+        Steps: {tactical_breakdown_result}
+        Final answer:"""
+    )
+     # Step 6: Final check
+    final_check_prompt: str = Field(
+            title="Final check",
+            default="""check your answer: {final_answer_result} to this problem: {user_prompt} and avoid lack of attention to detail and lack of pattern recognition."""
         )   
-
-    # Step 4: Develop Solution
-    develop_solution_prompt: str = Field(
-        title="Develop Solution Statement",
-        default="""Using the selected strategy above, **apply meticulous, step-by-step logical reasoning** to solve the problem. In your solution:
-
-        - **Detail each step** clearly and sequentially.
-        - **Reference relevant information** from the problem at each step.
-        - **Verify the correctness** of each step before proceeding.
-        - **Identify and justify any assumptions** made.
-
-        After completing your solution, **review it to ensure all aspects of the problem have been addressed**, and **provide a clear and direct final answer**.
-
-        Problem:
-        {user_prompt}
-        Selected Strategy:
-        {select_strategy_result}"""
-    )
-    
     # Reasoning Display Option
     show_reasoning: bool = Field(
         default=True,
